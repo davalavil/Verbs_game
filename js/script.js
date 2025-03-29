@@ -1,4 +1,4 @@
-// js/script.js (Versión final con validación corregida para múltiples opciones, feedback parcial y botón revelar)
+// js/script.js (Versión con estado "revelado" (gris) que no cuenta puntos)
 
 // --- Referencias a Elementos del DOM ---
 const tableBody = document.getElementById('verb-table-body');
@@ -18,9 +18,7 @@ let originalVerbDataMap = new Map();
 
 // --- Funciones ---
 
-/**
- * Baraja un array in-place usando el algoritmo Fisher-Yates.
- */
+/** Baraja un array in-place */
 function shuffleArray(array) {
     for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -29,10 +27,7 @@ function shuffleArray(array) {
     return array;
 }
 
-/**
- * Prepara e inicia el juego según el modo seleccionado.
- * Añade el botón de revelar en la última celda.
- */
+/** Prepara e inicia el juego */
 function startGame(mode) {
     currentMode = mode;
     feedbackDiv.innerHTML = '';
@@ -52,8 +47,7 @@ function startGame(mode) {
             const cell = row.insertCell();
             let makeInput = false;
 
-            // --- Creación de celda para la última columna (Tipo + Botón) ---
-            if (colIndex === 4) {
+            if (colIndex === 4) { // Columna Tipo + Botón
                 const typeText = document.createElement('span');
                 typeText.textContent = text;
                 cell.appendChild(typeText);
@@ -61,13 +55,12 @@ function startGame(mode) {
                 const revealBtn = document.createElement('button');
                 revealBtn.innerHTML = '👁️';
                 revealBtn.classList.add('reveal-button');
-                revealBtn.title = 'Mostrar respuestas de esta fila';
+                revealBtn.title = 'Mostrar respuestas (no contará como acierto)'; // Tooltip actualizado
                 revealBtn.setAttribute('aria-label', `Mostrar respuestas para ${verbData[0]}`);
                 revealBtn.addEventListener('click', handleRevealClick);
                 cell.appendChild(revealBtn);
 
-            } else { // Columnas de verbos y traducción
-                // Determinar si hacer input basado en el modo
+            } else { // Columnas Verbos/Traducción
                 switch (mode) {
                     case 'random': makeInput = Math.random() < 0.4; break;
                     case 'infinitive': makeInput = (colIndex === 0); break;
@@ -90,18 +83,16 @@ function startGame(mode) {
         });
     });
 
-    if (mode === 'random') {
-        ensureOneInputPerRow();
-    }
+    if (mode === 'random') { ensureOneInputPerRow(); }
 
-    feedbackDiv.textContent = 'Rellena las casillas vacías. La corrección es automática. Usa 👁️ para ver las respuestas de una fila.';
+    // Mensaje inicial actualizado
+    feedbackDiv.textContent = 'Rellena las casillas. Verde/Amarillo: Acierto. Rojo: Fallo. Gris: Respuesta revelada (no puntúa). Usa 👁️ para revelar.';
     console.log(`Juego iniciado en modo: ${mode}. Verbos mostrados: ${verbsToDisplay.length}`);
 }
 
-/**
- * Auxiliar para modo 'random': asegura al menos un input por fila.
- */
+/** Auxiliar para modo 'random' */
 function ensureOneInputPerRow() {
+    // ... (código sin cambios) ...
     const rows = tableBody.querySelectorAll('tr');
     rows.forEach(row => {
         const inputsInRow = row.querySelectorAll('input');
@@ -128,39 +119,40 @@ function ensureOneInputPerRow() {
     });
 }
 
-/**
- * Devuelve el nombre de la cabecera para aria-label.
- */
+/** Devuelve nombre de cabecera */
 function getHeaderName(colIndex) {
+    // ... (código sin cambios) ...
     const headers = ["Infinitivo", "Pasado Simple", "Pasado Participio", "Traducción"];
     return headers[colIndex] || "Desconocido";
 }
 
-/**
- * Manejador del evento 'blur' para un input (cuando pierde el foco).
- */
+/** Manejador del evento 'blur' */
 function handleInputBlur(event) {
     const input = event.target;
-    checkSingleInput(input);
+    // Solo comprobar si NO ha sido revelado previamente
+    if (!input.classList.contains('revealed')) {
+        checkSingleInput(input);
+    }
 }
 
 /**
- * Comprueba la respuesta de UN SOLO input y aplica el estilo visual (verde/amarillo/rojo).
- * Verde: Respuesta única correcta O todas las respuestas múltiples correctas (ej: "ser/estar").
- * Amarillo: Una de las respuestas múltiples correcta, pero no todas (ej: solo "ser").
- * Rojo: Respuesta incorrecta.
- * @param {HTMLInputElement} input El elemento input a comprobar.
- * @returns {boolean} `true` si la respuesta es correcta (verde) o parcial (amarillo), `false` si es incorrecta o hay error.
+ * Comprueba UN input y aplica estilo (verde/amarillo/rojo).
+ * IGNORA los inputs que ya tengan la clase 'revealed'.
+ * @returns {boolean} `true` si es verde/amarillo, `false` si es rojo/revelado/error.
  */
 function checkSingleInput(input) {
-    const userAnswer = input.value.trim(); // Respuesta usuario original (limpia de espacios externos)
+    // --- ¡NUEVO! Si ya está revelado, no hacer nada más y no contar como acierto ---
+    if (input.classList.contains('revealed')) {
+        return false;
+    }
+
+    const userAnswer = input.value.trim();
     const cell = input.closest('td');
     const row = input.closest('tr');
 
-    // --- Validación de datos necesarios ---
     if (!row || !cell || !row.dataset.verbKey || typeof input.dataset.colIndex === 'undefined') {
          console.error("CheckSingleInput: Info incompleta:", input);
-         input.classList.remove('correct', 'incorrect', 'partial');
+         input.classList.remove('correct', 'incorrect', 'partial', 'revealed');
          input.classList.add('incorrect');
          return false;
     }
@@ -171,73 +163,47 @@ function checkSingleInput(input) {
 
     if (!originalData) {
         console.error("CheckSingleInput: Datos no encontrados:", verbKey);
-        input.classList.remove('correct', 'incorrect', 'partial');
+        input.classList.remove('correct', 'incorrect', 'partial', 'revealed');
         input.classList.add('incorrect');
         return false;
     }
-    // --- Fin Validación ---
 
-    const correctAnswerString = originalData[colIndex]; // Ej: "ser/estar", "play", "was / were"
-
-    // --- Normalización ---
-    // Función para limpiar y estandarizar strings con posibles barras
-    const normalizeString = (str) => str.toLowerCase()        // a minúsculas
-                                     .split('/')             // dividir por barra
-                                     .map(s => s.trim())     // quitar espacios de cada parte
-                                     .filter(s => s !== '')  // quitar partes vacías
-                                     .join('/');            // volver a unir con UNA barra sin espacios
-
-    const normalizedUserAnswer = normalizeString(userAnswer); // Ej: "ser/estar", "play", "was/were"
-    const normalizedCorrectAnswer = normalizeString(correctAnswerString); // Ej: "ser/estar", "play", "was/were"
-
-    // Obtener las opciones individuales correctas (ya normalizadas)
-    const possibleAnswers = normalizedCorrectAnswer.split('/'); // Ej: ["ser", "estar"], ["play"], ["was", "were"]
+    const correctAnswerString = originalData[colIndex];
+    const normalizeString = (str) => str.toLowerCase().split('/').map(s => s.trim()).filter(s => s !== '').join('/');
+    const normalizedUserAnswer = normalizeString(userAnswer);
+    const normalizedCorrectAnswer = normalizeString(correctAnswerString);
+    const possibleAnswers = normalizedCorrectAnswer.split('/');
     const hasMultipleOptions = possibleAnswers.length > 1;
 
-    // --- Limpiar estado previo ---
-    input.classList.remove('correct', 'incorrect', 'partial');
+    input.classList.remove('correct', 'incorrect', 'partial'); // Quitar estados previos (pero no 'revealed')
     input.placeholder = '';
     input.title = '';
 
-    let isConsideredCorrectOrPartial = false; // Para el recuento final
+    let isConsideredCorrectOrPartial = false;
 
-    // --- Lógica de Comprobación CORREGIDA ---
     if (normalizedUserAnswer === '') {
-        // Vacío: No hacer nada en blur.
-    } else if (normalizedUserAnswer === normalizedCorrectAnswer) {
-        // **CASO 1: Coincidencia Exacta (VERDE)**
-        // El usuario escribió exactamente lo mismo que la respuesta correcta (normalizada).
-        // Cubre respuestas únicas ("play" == "play") y múltiples escritas completas ("ser/estar" == "ser/estar").
+        // Vacío: no marcar en blur
+    } else if (normalizedUserAnswer === normalizedCorrectAnswer) { // Verde
         input.classList.add('correct');
         isConsideredCorrectOrPartial = true;
-
-    } else if (hasMultipleOptions && possibleAnswers.includes(normalizedUserAnswer)) {
-        // **CASO 2: Coincidencia Parcial (AMARILLO)**
-        // No hubo coincidencia exacta, PERO:
-        // 1) La respuesta correcta SÍ tenía múltiples opciones.
-        // 2) La respuesta (normalizada) del usuario es UNA de esas opciones individuales.
-        //    (Nota: normalizedUserAnswer aquí NO puede contener '/' porque si no, habría caído en el CASO 1).
+    } else if (hasMultipleOptions && possibleAnswers.includes(normalizedUserAnswer)) { // Amarillo
         input.classList.add('partial');
         const otherOptions = possibleAnswers.filter(ans => ans !== normalizedUserAnswer).join(' / ');
         if (otherOptions) { input.title = `También válido: ${otherOptions}`; }
         isConsideredCorrectOrPartial = true;
-
-    } else {
-        // **CASO 3: Incorrecto (ROJO)**
-        // No coincide exactamente y tampoco es una de las opciones parciales válidas.
+    } else { // Rojo
         input.classList.add('incorrect');
-        input.placeholder = `Correcto: ${correctAnswerString}`; // Mostrar respuesta original
+        input.placeholder = `Correcto: ${correctAnswerString}`;
         isConsideredCorrectOrPartial = false;
     }
-    // --- Fin Lógica ---
 
-    // Devuelve true si fue verde o amarillo
     return isConsideredCorrectOrPartial;
 }
 
 
 /**
  * Manejador para el clic en el botón de revelar (ojo).
+ * Aplica el estado 'revealed' (gris) y deshabilita.
  */
 function handleRevealClick(event) {
     const button = event.target.closest('button');
@@ -252,25 +218,30 @@ function handleRevealClick(event) {
     if (!originalData) { console.error("RevealClick: Datos no encontrados:", verbKey); return; }
 
     console.log(`Revelando respuestas para: ${originalData[0]}`);
-
     const inputsInRow = row.querySelectorAll('input[type="text"]');
 
     inputsInRow.forEach(input => {
         if (typeof input.dataset.colIndex !== 'undefined') {
             const colIndex = parseInt(input.dataset.colIndex);
-            // Rellenamos con la respuesta completa (incluyendo '/' si hay varias)
-            const correctAnswer = originalData[colIndex];
-            input.value = correctAnswer;
-            checkSingleInput(input); // Validar para aplicar estilo verde/amarillo
-            // input.disabled = true; // Opcional: deshabilitar
+            const correctAnswer = originalData[colIndex]; // Usar la respuesta original completa
+
+            input.value = correctAnswer; // Poner el valor correcto
+
+            // --- Aplicar estado REVEALED ---
+            input.classList.remove('correct', 'partial', 'incorrect'); // Quitar otros estados
+            input.classList.add('revealed'); // Añadir clase gris
+            input.placeholder = ''; // Limpiar placeholder
+            input.title = ''; // Limpiar tooltip
+
+            input.disabled = true; // Deshabilitar el input
         }
     });
-    button.disabled = true; // Deshabilitar botón revelar
+    button.disabled = true; // Deshabilitar el botón revelar
 }
 
 
 /**
- * Comprueba TODAS las respuestas (llamado por el botón).
+ * Comprueba TODAS las respuestas, contando aciertos y revelados por separado.
  */
 function checkAllAnswers() {
      if (!currentMode) {
@@ -278,7 +249,8 @@ function checkAllAnswers() {
         return;
     }
     const inputs = tableBody.querySelectorAll('input[type="text"]');
-    let correctOrPartialCount = 0;
+    let correctOrPartialCount = 0; // Contador para verdes/amarillos
+    let revealedCount = 0; // --- NUEVO CONTADOR ---
     let totalInputs = inputs.length;
     let answeredInputs = 0;
 
@@ -288,12 +260,21 @@ function checkAllAnswers() {
     }
 
     inputs.forEach(input => {
-        const isCorrectOrPartial = checkSingleInput(input); // Revalida cada input
+        // Si está revelado, solo contar como revelado y pasar al siguiente
+        if (input.classList.contains('revealed')) {
+            revealedCount++; // Incrementar contador de revelados
+            if (input.value.trim() !== '') { answeredInputs++; } // Contar como respondido si tiene valor
+            return; // No seguir comprobando este input
+        }
+
+        // Si no está revelado, comprobar normalmente
+        const isCorrectOrPartial = checkSingleInput(input);
         if (isCorrectOrPartial) {
             correctOrPartialCount++;
         }
-        // Marcar vacíos como incorrectos al comprobar todo
-        if (input.value.trim() === '' && !input.classList.contains('correct') && !input.classList.contains('partial')) {
+
+        // Marcar vacíos como incorrectos (solo si no están revelados)
+        if (input.value.trim() === '' && !isCorrectOrPartial) { // Ya sabemos que no es 'revealed'
              input.classList.add('incorrect');
              const row = input.closest('tr');
              const colIndex = parseInt(input.dataset.colIndex);
@@ -302,12 +283,20 @@ function checkAllAnswers() {
                  input.placeholder = `Respuesta: ${originalData[colIndex]}`;
              }
         }
+        // Contar como respondido si tiene valor (y no fue revelado)
         if (input.value.trim() !== '') {
             answeredInputs++;
         }
     });
 
-    feedbackDiv.textContent = `Comprobación final: ${correctOrPartialCount} de ${totalInputs} respuestas correctas (verdes o amarillas). (${answeredInputs} respondidas).`;
+    // --- Mensaje de Feedback Actualizado ---
+    let feedbackMsg = `Comprobación final: ${correctOrPartialCount} correctas (✓), `;
+    if (revealedCount > 0) {
+         feedbackMsg += `${revealedCount} reveladas (👁️), `;
+    }
+    feedbackMsg += `de ${totalInputs} casillas. (${answeredInputs} respondidas).`;
+
+    feedbackDiv.textContent = feedbackMsg;
     feedbackDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
@@ -322,4 +311,4 @@ btnCheck.addEventListener('click', checkAllAnswers);
 btnCheck.textContent = 'Comprobar Todo / Ver Respuestas';
 
 // --- Inicio ---
-feedbackDiv.textContent = "Selecciona un modo de juego para empezar.";
+feedbackDiv.textContent = "Selecciona un modo de juego para empezar."; // Mensaje inicial estándar
