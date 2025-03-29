@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Juego de Verbos Ingleses</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <h1>Juego de Práctica de Verbos</h1>
+
+    <div id="controles">
+        <h2>Elige un modo de juego:</h2>
+        <button id="btn-random">Aleatorio</button>
+        <button id="btn-infinitive">Rellenar Infinitivo</button>
+        <button id="btn-past-simple">Rellenar Pasado Simple</button>
+        <button id="btn-past-participle">Rellenar Pasado Participio</button>
+        <button id="btn-translation">Rellenar Traducción</button>
+        <!-- Podríamos añadir un selector para el número de verbos si la lista es muy grande -->
+        <!-- <label for="num-verbs">Número de verbos:</label>
+        <input type="number" id="num-verbs" value="10" min="1"> -->
+    </div>
+
+    <div id="juego">
+        <table id="verb-table">
+            <thead>
+                <tr>
+                    <th>Infinitivo (Inglés)</th>
+                    <th>Pasado Simple (Inglés)</th>
+                    <th>Pasado Participio (Inglés)</th>
+                    <th>Traducción (Castellano)</th>
+                    <th>Tipo</th>
+                </tr>
+            </thead>
+            <tbody id="verb-table-body">
+                <!-- Las filas de verbos se generarán aquí con JavaScript -->
+            </tbody>
+        </table>
+    </div>
+
+    <div id="acciones">
+        <button id="btn-check">Comprobar Respuestas</button>
+    </div>
+
+    <div id="feedback">
+        <!-- Los resultados se mostrarán aquí -->
+    </div>
+
+    <!-- Importante: Carga primero la lista de verbos -->
+    <script src="verbs.js"></script>
+    <!-- Luego carga el script principal del juego -->
+    <script src="script.js"></script>
+</body>
+</html>
