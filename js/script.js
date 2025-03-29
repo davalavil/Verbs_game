@@ -1,4 +1,4 @@
-// js/script.js (Versión con validación instantánea y feedback parcial amarillo)
+// js/script.js (Versión con validación instantánea, feedback parcial y botón revelar fila)
 
 // --- Referencias a Elementos del DOM ---
 const tableBody = document.getElementById('verb-table-body');
@@ -31,6 +31,7 @@ function shuffleArray(array) {
 
 /**
  * Prepara e inicia el juego según el modo seleccionado.
+ * Añade el botón de revelar en la última celda.
  */
 function startGame(mode) {
     currentMode = mode;
@@ -51,9 +52,23 @@ function startGame(mode) {
             const cell = row.insertCell();
             let makeInput = false;
 
+            // --- MODIFICACIÓN AQUÍ para la última columna ---
             if (colIndex === 4) { // Columna 'Tipo'
-                cell.textContent = text;
-            } else {
+                // Crear un span para el texto "regular/irregular"
+                const typeText = document.createElement('span');
+                typeText.textContent = text;
+                cell.appendChild(typeText);
+
+                // Crear el botón de revelar (ojo)
+                const revealBtn = document.createElement('button');
+                revealBtn.innerHTML = '👁️'; // Emoji de ojo (o usa )
+                revealBtn.classList.add('reveal-button');
+                revealBtn.title = 'Mostrar respuestas de esta fila'; // Tooltip
+                revealBtn.setAttribute('aria-label', `Mostrar respuestas para ${verbData[0]}`);
+                revealBtn.addEventListener('click', handleRevealClick); // Añadir listener
+                cell.appendChild(revealBtn);
+
+            } else { // Columnas de verbos y traducción
                 // Determinar si hacer input basado en el modo
                 switch (mode) {
                     case 'random': makeInput = Math.random() < 0.4; break;
@@ -81,12 +96,13 @@ function startGame(mode) {
         ensureOneInputPerRow(); // Asegurar inputs en modo aleatorio
     }
 
-    feedbackDiv.textContent = 'Rellena las casillas vacías. La corrección es automática al salir de cada casilla.';
+    feedbackDiv.textContent = 'Rellena las casillas vacías. La corrección es automática. Usa 👁️ para ver las respuestas de una fila.';
     console.log(`Juego iniciado en modo: ${mode}. Verbos mostrados: ${verbsToDisplay.length}`);
 }
 
 /**
  * Auxiliar para modo 'random': asegura al menos un input por fila.
+ * No necesita cambios para el botón revelar, ya que este se añade en startGame.
  */
 function ensureOneInputPerRow() {
     const rows = tableBody.querySelectorAll('tr');
@@ -126,29 +142,25 @@ function getHeaderName(colIndex) {
 }
 
 /**
- * Manejador del evento 'blur' para un input. Se llama cuando el input pierde el foco.
+ * Manejador del evento 'blur' para un input (cuando pierde el foco).
  */
 function handleInputBlur(event) {
     const input = event.target;
     checkSingleInput(input); // Comprueba la respuesta de este input
-    // updateGeneralFeedback(); // Podrías llamar a una función que actualice el contador general aquí si quieres
 }
 
 /**
  * Comprueba la respuesta de UN SOLO input y aplica el estilo visual (verde/amarillo/rojo).
- * @param {HTMLInputElement} input El elemento input a comprobar.
- * @returns {boolean} `true` si la respuesta es correcta o parcialmente correcta, `false` si es incorrecta o hay error.
  */
 function checkSingleInput(input) {
-    const userAnswer = input.value.trim(); // Guardamos la respuesta con mayúsculas/minúsculas originales
-    const lowerUserAnswer = userAnswer.toLowerCase(); // Versión en minúsculas para comparación
+    const userAnswer = input.value.trim();
+    const lowerUserAnswer = userAnswer.toLowerCase();
     const cell = input.closest('td');
     const row = input.closest('tr');
 
-    // Validar que tenemos toda la info necesaria
     if (!row || !cell || !row.dataset.verbKey || typeof input.dataset.colIndex === 'undefined') {
-         console.error("CheckSingleInput: Info incompleta para comprobar:", input);
-         input.classList.remove('correct', 'incorrect', 'partial'); // Limpia clases
+         console.error("CheckSingleInput: Info incompleta:", input);
+         input.classList.remove('correct', 'incorrect', 'partial');
          input.classList.add('incorrect');
          return false;
     }
@@ -157,60 +169,84 @@ function checkSingleInput(input) {
     const colIndex = parseInt(input.dataset.colIndex);
     const originalData = originalVerbDataMap.get(verbKey);
 
-    // Validar que encontramos los datos originales
     if (!originalData) {
-        console.error("CheckSingleInput: Datos originales no encontrados para:", verbKey);
+        console.error("CheckSingleInput: Datos no encontrados:", verbKey);
         input.classList.remove('correct', 'incorrect', 'partial');
         input.classList.add('incorrect');
         return false;
     }
 
-    const correctAnswerString = originalData[colIndex]; // Respuesta(s) correcta(s) como string original
-    const lowerCorrectAnswerString = correctAnswerString.toLowerCase(); // Versión en minúsculas para comparar
+    const correctAnswerString = originalData[colIndex];
+    const lowerCorrectAnswerString = correctAnswerString.toLowerCase();
+    const possibleAnswers = lowerCorrectAnswerString.split('/').map(ans => ans.trim()).filter(ans => ans !== '');
+    const hasMultipleOptions = possibleAnswers.length > 1;
 
-    // Dividir las posibles respuestas correctas (siempre, incluso si solo hay una)
-    const possibleAnswers = lowerCorrectAnswerString.split('/').map(ans => ans.trim()).filter(ans => ans !== ''); // Divide y quita vacíos
-    const hasMultipleOptions = possibleAnswers.length > 1; // ¿Hay más de una opción válida?
+    input.classList.remove('correct', 'incorrect', 'partial');
+    input.placeholder = '';
+    input.title = ''; // Limpiar tooltip al comprobar/revalidar
 
-    // Limpiar estilos y placeholder anteriores
-    input.classList.remove('correct', 'incorrect', 'partial'); // Asegura limpiar todos los estados
-    input.placeholder = ''; // Quitar cualquier placeholder previo
+    let isConsideredCorrect = false;
 
-    let isConsideredCorrect = false; // Para el contador final
-
-    // Comprobar la respuesta
     if (lowerUserAnswer === '') {
-        // Vacío: no hacer nada ahora, se marcará en "Comprobar Todo" si sigue vacío.
+        // No marcar vacío en blur, solo en 'Comprobar Todo'
     } else if (possibleAnswers.includes(lowerUserAnswer)) {
-        // La respuesta del usuario está en la lista de posibles respuestas correctas
-        isConsideredCorrect = true; // Cuenta como acierto
-
+        isConsideredCorrect = true;
         if (hasMultipleOptions) {
-            // Había múltiples opciones Y el usuario puso una de ellas -> Amarillo (Parcial)
-            input.classList.add('partial');
-             // Opcional: Mostrar las otras opciones en el title (tooltip)
-             const otherOptions = possibleAnswers.filter(ans => ans !== lowerUserAnswer).join(' / ');
-             if(otherOptions) {
-                 input.title = `También válido: ${otherOptions}`;
-             } else {
-                 input.title = ''; // Limpiar tooltip si no hay otras
-             }
+            input.classList.add('partial'); // Amarillo
+            const otherOptions = possibleAnswers.filter(ans => ans !== lowerUserAnswer).join(' / ');
+            if(otherOptions) { input.title = `También válido: ${otherOptions}`; } // Mostrar otras opciones en tooltip
         } else {
-            // Solo había una opción posible Y el usuario la puso -> Verde (Correcto)
-            input.classList.add('correct');
-            input.title = ''; // Limpiar tooltip
+            input.classList.add('correct'); // Verde
         }
     } else {
-        // La respuesta del usuario NO está en la lista de posibles respuestas
-        input.classList.add('incorrect');
-        // Mostrar TODAS las opciones correctas (formato original) en el placeholder
-        input.placeholder = `Correcto: ${correctAnswerString}`;
-        input.title = ''; // Limpiar tooltip
+        input.classList.add('incorrect'); // Rojo
+        input.placeholder = `Correcto: ${correctAnswerString}`; // Mostrar respuesta(s) correcta(s)
         isConsideredCorrect = false;
     }
+    return isConsideredCorrect; // Devuelve true si fue verde o amarillo
+}
 
-    // Devolvemos true si fue 'correct' o 'partial' para que cuente en el resumen final
-    return isConsideredCorrect;
+
+/**
+ * Manejador para el clic en el botón de revelar (ojo).
+ * Rellena todos los inputs de la fila correspondiente con las respuestas correctas.
+ */
+function handleRevealClick(event) {
+    const button = event.target.closest('button'); // Asegura que es el botón
+    if (!button) return; // Salir si no se hizo clic en el botón
+
+    const row = button.closest('tr');
+    if (!row || !row.dataset.verbKey) return; // Salir si no encontramos la fila o la clave
+
+    const verbKey = row.dataset.verbKey;
+    const originalData = originalVerbDataMap.get(verbKey);
+
+    if (!originalData) {
+        console.error("RevealClick: No se encontraron datos para la clave:", verbKey);
+        return;
+    }
+
+    console.log(`Revelando respuestas para: ${originalData[0]}`);
+
+    // Encontrar todos los inputs DENTRO de esta fila específica
+    const inputsInRow = row.querySelectorAll('input[type="text"]');
+
+    inputsInRow.forEach(input => {
+        if (typeof input.dataset.colIndex !== 'undefined') {
+            const colIndex = parseInt(input.dataset.colIndex);
+            // Obtener la respuesta correcta (o la primera si hay varias)
+            const correctAnswer = originalData[colIndex].split('/')[0].trim();
+            // Alternativa: Mostrar todas las opciones separadas por /
+            // const correctAnswer = originalData[colIndex];
+
+            input.value = correctAnswer; // Poner la respuesta en el input
+            checkSingleInput(input); // Validar para que se ponga verde/amarillo y actualice tooltip/placeholder si es necesario
+            // input.disabled = true; // Opcional: deshabilitar input después de revelar
+        }
+    });
+
+    // Opcional: deshabilitar el botón de revelar una vez usado
+    button.disabled = true;
 }
 
 
@@ -220,13 +256,12 @@ function checkSingleInput(input) {
  * y muestra un resumen final en el div de feedback.
  */
 function checkAllAnswers() {
-    if (!currentMode) {
+     if (!currentMode) {
         feedbackDiv.textContent = 'Selecciona un modo de juego para empezar.';
         return;
     }
-
     const inputs = tableBody.querySelectorAll('input[type="text"]');
-    let correctOrPartialCount = 0; // Contará tanto verdes como amarillos
+    let correctOrPartialCount = 0;
     let totalInputs = inputs.length;
     let answeredInputs = 0;
 
@@ -235,15 +270,12 @@ function checkAllAnswers() {
         return;
     }
 
-    // Iterar por cada input para comprobarlo y contar
     inputs.forEach(input => {
-        const isCorrectOrPartial = checkSingleInput(input); // Revalida (o valida por primera vez)
+        const isCorrectOrPartial = checkSingleInput(input); // Revalida cada input
         if (isCorrectOrPartial) {
             correctOrPartialCount++;
         }
-
-        // Si el input está vacío DESPUÉS de la validación y no es correcto/parcial,
-        // lo marcamos explícitamente como incorrecto y mostramos la respuesta.
+        // Si el input está vacío Y no es correcto/parcial después de la validación, marcar como incorrecto
         if (input.value.trim() === '' && !input.classList.contains('correct') && !input.classList.contains('partial')) {
              input.classList.add('incorrect');
              // Mostrar la respuesta en el placeholder para los vacíos
@@ -254,8 +286,7 @@ function checkAllAnswers() {
                  input.placeholder = `Respuesta: ${originalData[colIndex]}`;
              }
         }
-
-        // Contar si el input fue respondido (tiene algún valor)
+        // Contar si el input tiene algún valor
         if (input.value.trim() !== '') {
             answeredInputs++;
         }
@@ -263,7 +294,6 @@ function checkAllAnswers() {
 
     // Mostrar el resumen final
     feedbackDiv.textContent = `Comprobación final: ${correctOrPartialCount} de ${totalInputs} respuestas correctas (verdes o amarillas). (${answeredInputs} respondidas).`;
-    // Hacer scroll para que el feedback sea visible
     feedbackDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
@@ -274,10 +304,8 @@ btnInfinitive.addEventListener('click', () => startGame('infinitive'));
 btnPastSimple.addEventListener('click', () => startGame('past_simple'));
 btnPastParticiple.addEventListener('click', () => startGame('past_participle'));
 btnTranslation.addEventListener('click', () => startGame('translation'));
-
-// El botón 'Comprobar' ahora sirve para una revisión final y ver respuestas de los no contestados/incorrectos
 btnCheck.addEventListener('click', checkAllAnswers);
-btnCheck.textContent = 'Comprobar Todo / Ver Respuestas'; // Texto actualizado del botón
+btnCheck.textContent = 'Comprobar Todo / Ver Respuestas';
 
 // --- Inicio ---
 // Mensaje inicial al cargar la página
