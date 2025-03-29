@@ -1,3 +1,5 @@
+/* css/style.css */
+
 body {
     font-family: sans-serif;
     line-height: 1.6;
@@ -19,7 +21,7 @@ h1, h2 {
     padding: 10px 15px;
     margin: 5px;
     cursor: pointer;
-    background-color: #5cb85c;
+    background-color: #5cb85c; /* Verde */
     color: white;
     border: none;
     border-radius: 4px;
@@ -27,7 +29,7 @@ h1, h2 {
 }
 
 #controles button:hover, #acciones button:hover {
-    background-color: #4cae4c;
+    background-color: #4cae4c; /* Verde más oscuro */
 }
 
 #juego {
@@ -62,21 +64,43 @@ h1, h2 {
     border: 1px solid #ccc;
     border-radius: 3px;
     box-sizing: border-box; /* Para que padding no aumente el tamaño total */
+    background-color: #fff; /* Fondo base */
+    transition: background-color 0.3s ease, border-color 0.3s ease; /* Suaviza el cambio de color */
 }
 
-/* Estilos para feedback visual (opcional, se aplica con JS) */
+/* Estilos para feedback visual */
 .correct {
     border: 2px solid green !important;
-    background-color: #e9ffe9;
+    background-color: #e9ffe9 !important; /* Verde claro */
 }
 
 .incorrect {
     border: 2px solid red !important;
-    background-color: #ffe9e9;
+    background-color: #ffe9e9 !important; /* Rojo claro */
+}
+
+/* --- ESTILO AÑADIDO --- */
+/* Estilo para respuestas parcialmente correctas (cuando hay varias opciones) */
+.partial {
+    border: 2px solid #e69900 !important; /* Naranja/Dorado */
+    background-color: #fff8e1 !important; /* Amarillo muy claro */
+}
+
+/* Placeholder style (para mostrar respuestas correctas) */
+#verb-table input[type="text"]::placeholder {
+  color: #a0a0a0; /* Color grisáceo para el placeholder */
+  font-style: italic;
+}
+
+/* Estilo para input incorrecto con placeholder visible */
+#verb-table input[type="text"].incorrect::placeholder {
+  color: #d32f2f; /* Color rojo para el placeholder de respuesta correcta en campo incorrecto */
+  font-style: normal; /* Quitar cursiva si es la respuesta */
 }
 
 #feedback {
     margin-top: 20px;
     font-weight: bold;
     font-size: 1.1em;
+    min-height: 1.5em; /* Espacio reservado para que no salte la página */
 }
