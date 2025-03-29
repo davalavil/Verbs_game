@@ -1,4 +1,4 @@
-// js/script.js (Versión final con validación instantánea, feedback parcial/completo y botón revelar fila)
+// js/script.js (Versión final con validación corregida para múltiples opciones, feedback parcial y botón revelar)
 
 // --- Referencias a Elementos del DOM ---
 const tableBody = document.getElementById('verb-table-body');
@@ -146,15 +146,14 @@ function handleInputBlur(event) {
 
 /**
  * Comprueba la respuesta de UN SOLO input y aplica el estilo visual (verde/amarillo/rojo).
- * Verde: Respuesta única correcta O todas las respuestas múltiples correctas.
- * Amarillo: Una de las respuestas múltiples correcta, pero no todas.
+ * Verde: Respuesta única correcta O todas las respuestas múltiples correctas (ej: "ser/estar").
+ * Amarillo: Una de las respuestas múltiples correcta, pero no todas (ej: solo "ser").
  * Rojo: Respuesta incorrecta.
  * @param {HTMLInputElement} input El elemento input a comprobar.
  * @returns {boolean} `true` si la respuesta es correcta (verde) o parcial (amarillo), `false` si es incorrecta o hay error.
  */
 function checkSingleInput(input) {
-    const userAnswer = input.value.trim(); // Respuesta del usuario (con espacios y mayúsculas originales)
-    const lowerUserAnswer = userAnswer.toLowerCase(); // Para comparación insensible a mayúsculas
+    const userAnswer = input.value.trim(); // Respuesta usuario original (limpia de espacios externos)
     const cell = input.closest('td');
     const row = input.closest('tr');
 
@@ -178,74 +177,61 @@ function checkSingleInput(input) {
     }
     // --- Fin Validación ---
 
-    const correctAnswerString = originalData[colIndex]; // Respuesta(s) correcta(s) como string original
-    const lowerCorrectAnswerString = correctAnswerString.toLowerCase(); // Para comparación
+    const correctAnswerString = originalData[colIndex]; // Ej: "ser/estar", "play", "was / were"
 
-    // Obtener las respuestas posibles SIEMPRE como un array
-    const possibleAnswers = lowerCorrectAnswerString.split('/')
-                                  .map(ans => ans.trim())
-                                  .filter(ans => ans !== ''); // Divide, limpia espacios y quita vacíos
+    // --- Normalización ---
+    // Función para limpiar y estandarizar strings con posibles barras
+    const normalizeString = (str) => str.toLowerCase()        // a minúsculas
+                                     .split('/')             // dividir por barra
+                                     .map(s => s.trim())     // quitar espacios de cada parte
+                                     .filter(s => s !== '')  // quitar partes vacías
+                                     .join('/');            // volver a unir con UNA barra sin espacios
+
+    const normalizedUserAnswer = normalizeString(userAnswer); // Ej: "ser/estar", "play", "was/were"
+    const normalizedCorrectAnswer = normalizeString(correctAnswerString); // Ej: "ser/estar", "play", "was/were"
+
+    // Obtener las opciones individuales correctas (ya normalizadas)
+    const possibleAnswers = normalizedCorrectAnswer.split('/'); // Ej: ["ser", "estar"], ["play"], ["was", "were"]
     const hasMultipleOptions = possibleAnswers.length > 1;
 
-    // Limpiar clases, placeholder y tooltip previos
+    // --- Limpiar estado previo ---
     input.classList.remove('correct', 'incorrect', 'partial');
     input.placeholder = '';
     input.title = '';
 
     let isConsideredCorrectOrPartial = false; // Para el recuento final
 
-    // --- Lógica de Comprobación (MODIFICADA) ---
-    if (lowerUserAnswer === '') {
-        // Si está vacío, no hacer nada en blur. Se marcará en 'Comprobar Todo'.
+    // --- Lógica de Comprobación CORREGIDA ---
+    if (normalizedUserAnswer === '') {
+        // Vacío: No hacer nada en blur.
+    } else if (normalizedUserAnswer === normalizedCorrectAnswer) {
+        // **CASO 1: Coincidencia Exacta (VERDE)**
+        // El usuario escribió exactamente lo mismo que la respuesta correcta (normalizada).
+        // Cubre respuestas únicas ("play" == "play") y múltiples escritas completas ("ser/estar" == "ser/estar").
+        input.classList.add('correct');
+        isConsideredCorrectOrPartial = true;
+
+    } else if (hasMultipleOptions && possibleAnswers.includes(normalizedUserAnswer)) {
+        // **CASO 2: Coincidencia Parcial (AMARILLO)**
+        // No hubo coincidencia exacta, PERO:
+        // 1) La respuesta correcta SÍ tenía múltiples opciones.
+        // 2) La respuesta (normalizada) del usuario es UNA de esas opciones individuales.
+        //    (Nota: normalizedUserAnswer aquí NO puede contener '/' porque si no, habría caído en el CASO 1).
+        input.classList.add('partial');
+        const otherOptions = possibleAnswers.filter(ans => ans !== normalizedUserAnswer).join(' / ');
+        if (otherOptions) { input.title = `También válido: ${otherOptions}`; }
+        isConsideredCorrectOrPartial = true;
+
     } else {
-        // Comprobar si la respuesta *exacta* del usuario (ignorando mayúsculas/minúsculas)
-        // está dentro de las posibles respuestas individuales.
-        const isAmongPossible = possibleAnswers.includes(lowerUserAnswer);
-
-        if (isAmongPossible) {
-            // La respuesta es al menos una de las opciones válidas.
-            isConsideredCorrectOrPartial = true; // Contará como acierto
-
-            if (hasMultipleOptions) {
-                // Había múltiples opciones originalmente. Ahora vemos si las puso TODAS.
-
-                // Normalizamos la entrada del usuario: dividir por '/', quitar espacios, filtrar vacíos y ordenar
-                const userProvidedAnswers = lowerUserAnswer.split('/')
-                                              .map(ans => ans.trim())
-                                              .filter(ans => ans !== '');
-                userProvidedAnswers.sort(); // Ordenar para comparar independientemente del orden de entrada
-
-                // Normalizamos las respuestas correctas (ya las teníamos, solo falta ordenar)
-                const sortedPossibleAnswers = [...possibleAnswers].sort();
-
-                // Comparamos si los arrays (normalizados y ordenados) son idénticos
-                const isExactMatchOfAll = userProvidedAnswers.length === sortedPossibleAnswers.length &&
-                                          userProvidedAnswers.every((val, index) => val === sortedPossibleAnswers[index]);
-
-                if (isExactMatchOfAll) {
-                    // El usuario escribió TODAS las opciones válidas -> Verde
-                    input.classList.add('correct');
-                } else {
-                    // El usuario escribió UNA opción válida, pero NO TODAS -> Amarillo
-                    input.classList.add('partial');
-                    // Mostrar las otras opciones en el tooltip
-                    const otherOptions = possibleAnswers.filter(ans => ans !== lowerUserAnswer).join(' / ');
-                    if (otherOptions) { input.title = `También válido: ${otherOptions}`; }
-                }
-            } else {
-                // Solo había una opción posible, y el usuario la acertó -> Verde
-                input.classList.add('correct');
-            }
-        } else {
-            // La respuesta del usuario NO coincide con ninguna de las opciones válidas -> Rojo
-            input.classList.add('incorrect');
-            input.placeholder = `Correcto: ${correctAnswerString}`; // Mostrar la(s) respuesta(s) correcta(s)
-            isConsideredCorrectOrPartial = false;
-        }
+        // **CASO 3: Incorrecto (ROJO)**
+        // No coincide exactamente y tampoco es una de las opciones parciales válidas.
+        input.classList.add('incorrect');
+        input.placeholder = `Correcto: ${correctAnswerString}`; // Mostrar respuesta original
+        isConsideredCorrectOrPartial = false;
     }
     // --- Fin Lógica ---
 
-    // Devuelve true si fue verde o amarillo (para el contador de 'Comprobar Todo')
+    // Devuelve true si fue verde o amarillo
     return isConsideredCorrectOrPartial;
 }
 
