@@ -1,0 +1,82 @@
+body {
+    font-family: sans-serif;
+    line-height: 1.6;
+    margin: 20px;
+    background-color: #f4f4f4;
+}
+
+h1, h2 {
+    text-align: center;
+    color: #333;
+}
+
+#controles, #acciones, #feedback {
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+#controles button, #acciones button {
+    padding: 10px 15px;
+    margin: 5px;
+    cursor: pointer;
+    background-color: #5cb85c;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 1em;
+}
+
+#controles button:hover, #acciones button:hover {
+    background-color: #4cae4c;
+}
+
+#juego {
+    margin: 20px auto;
+    max-width: 900px; /* Ajusta según necesidad */
+    overflow-x: auto; /* Para tablas anchas en pantallas pequeñas */
+}
+
+#verb-table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: #fff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+#verb-table th, #verb-table td {
+    border: 1px solid #ddd;
+    padding: 10px;
+    text-align: left;
+    vertical-align: middle; /* Alinea el texto con los inputs */
+}
+
+#verb-table th {
+    background-color: #f0f0f0;
+    color: #333;
+}
+
+/* Estilo para las celdas de entrada */
+#verb-table input[type="text"] {
+    width: 95%; /* Ocupa casi todo el espacio de la celda */
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    box-sizing: border-box; /* Para que padding no aumente el tamaño total */
+}
+
+/* Estilos para feedback visual (opcional, se aplica con JS) */
+.correct {
+    border: 2px solid green !important;
+    background-color: #e9ffe9;
+}
+
+.incorrect {
+    border: 2px solid red !important;
+    background-color: #ffe9e9;
+}
+
+#feedback {
+    margin-top: 20px;
+    font-weight: bold;
+    font-size: 1.1em;
+}
