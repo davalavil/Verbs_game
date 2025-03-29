@@ -79,7 +79,6 @@ h1, h2 {
     background-color: #ffe9e9 !important; /* Rojo claro */
 }
 
-/* --- ESTILO AÑADIDO --- */
 /* Estilo para respuestas parcialmente correctas (cuando hay varias opciones) */
 .partial {
     border: 2px solid #e69900 !important; /* Naranja/Dorado */
@@ -103,4 +102,39 @@ h1, h2 {
     font-weight: bold;
     font-size: 1.1em;
     min-height: 1.5em; /* Espacio reservado para que no salte la página */
+}
+
+/* --- ESTILOS NUEVOS/MODIFICADOS PARA BOTÓN REVELAR --- */
+
+/* Estilo para la última celda (Tipo) para alinear texto y botón */
+#verb-table td:last-child {
+    display: flex; /* Permite alinear elementos en la celda */
+    align-items: center; /* Centra verticalmente */
+    justify-content: space-between; /* Espacio entre texto y botón */
+    /* Si flex causa problemas con tablas muy estrechas, puedes quitarlo y usar vertical-align */
+}
+
+/* Estilo para el botón de revelar fila (ojo) */
+.reveal-button {
+    background: none; /* Sin fondo */
+    border: none; /* Sin borde */
+    padding: 0 5px; /* Pequeño padding horizontal */
+    margin-left: 10px; /* Espacio a la izquierda del botón */
+    cursor: pointer; /* Cursor de mano */
+    font-size: 1.3em; /* Tamaño del icono/texto del botón */
+    color: #555; /* Color del icono */
+    vertical-align: middle; /* Alinear con el texto si flex no se usa */
+    line-height: 1; /* Ajustar altura de línea */
+    flex-shrink: 0; /* Evita que el botón se encoja si no hay espacio */
+}
+
+.reveal-button:hover {
+    color: #000; /* Color al pasar el ratón */
+}
+
+/* Estilo opcional si el botón se deshabilita */
+.reveal-button:disabled {
+    cursor: default;
+    opacity: 0.5;
+    color: #999; /* Color más apagado cuando está deshabilitado */
 }
