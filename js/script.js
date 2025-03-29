@@ -1,3 +1,5 @@
+// js/script.js (Versión con validación instantánea y feedback parcial amarillo)
+
 // --- Referencias a Elementos del DOM ---
 const tableBody = document.getElementById('verb-table-body');
 const btnRandom = document.getElementById('btn-random');
@@ -5,131 +7,110 @@ const btnInfinitive = document.getElementById('btn-infinitive');
 const btnPastSimple = document.getElementById('btn-past-simple');
 const btnPastParticiple = document.getElementById('btn-past-participle');
 const btnTranslation = document.getElementById('btn-translation');
-const btnCheck = document.getElementById('btn-check'); // Sigue siendo útil para un resumen final
+const btnCheck = document.getElementById('btn-check');
 const feedbackDiv = document.getElementById('feedback');
-// const numVerbsInput = document.getElementById('num-verbs'); // Descomentar si añades el selector de número
+// const numVerbsInput = document.getElementById('num-verbs');
 
 // --- Variables Globales ---
-let currentMode = null; // Modo de juego actual
-let verbsToDisplay = []; // Verbos mostrados en la tabla actual
-let originalVerbDataMap = new Map(); // Mapa para acceder rápido a los datos originales de los verbos
+let currentMode = null;
+let verbsToDisplay = [];
+let originalVerbDataMap = new Map();
 
 // --- Funciones ---
 
 /**
  * Baraja un array in-place usando el algoritmo Fisher-Yates.
- * @param {Array} array El array a barajar.
- * @returns {Array} El mismo array, pero barajado.
  */
 function shuffleArray(array) {
     for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]]; // Intercambio de elementos
+        [array[i], array[j]] = [array[j], array[i]];
     }
     return array;
 }
 
 /**
  * Prepara e inicia el juego según el modo seleccionado.
- * Limpia la tabla, selecciona verbos, los baraja y crea las filas con inputs/texto.
- * @param {string} mode - El modo de juego ('random', 'infinitive', etc.).
  */
 function startGame(mode) {
     currentMode = mode;
-    feedbackDiv.innerHTML = ''; // Limpia feedback anterior al iniciar nuevo juego
-    tableBody.innerHTML = ''; // Limpia la tabla anterior
-    originalVerbDataMap.clear(); // Limpia el mapa de datos
+    feedbackDiv.innerHTML = '';
+    tableBody.innerHTML = '';
+    originalVerbDataMap.clear();
 
-    // 1. Seleccionar y barajar verbos (usamos todos)
-    // Si tuvieras muchos verbos, aquí podrías seleccionar un subconjunto
-    verbsToDisplay = shuffleArray([...verbList]); // Copia y baraja la lista completa
+    verbsToDisplay = shuffleArray([...verbList]);
 
-    // 2. Crear mapa para búsqueda rápida y generar filas de la tabla
     verbsToDisplay.forEach((verbData, displayIndex) => {
-        // Clave única para el mapa (infinitivo + índice por si hay infinitivos repetidos en la lista original)
         const originalKey = verbData[0] + '-' + displayIndex;
-        originalVerbDataMap.set(originalKey, verbData); // Guarda los datos originales asociados a esta clave
+        originalVerbDataMap.set(originalKey, verbData);
 
         const row = tableBody.insertRow();
-        row.dataset.verbKey = originalKey; // Guarda la clave en la fila para referencia futura
+        row.dataset.verbKey = originalKey;
 
-        // 3. Crear celdas para cada columna del verbo
         verbData.forEach((text, colIndex) => {
             const cell = row.insertCell();
-            let makeInput = false; // Determina si esta celda será un input o texto
+            let makeInput = false;
 
-            // Columna 4 (Tipo) siempre es texto
-            if (colIndex === 4) {
+            if (colIndex === 4) { // Columna 'Tipo'
                 cell.textContent = text;
             } else {
-                // Determinar si hacer input basado en el modo de juego
+                // Determinar si hacer input basado en el modo
                 switch (mode) {
-                    case 'random': makeInput = Math.random() < 0.4; break; // 40% probabilidad
+                    case 'random': makeInput = Math.random() < 0.4; break;
                     case 'infinitive': makeInput = (colIndex === 0); break;
                     case 'past_simple': makeInput = (colIndex === 1); break;
                     case 'past_participle': makeInput = (colIndex === 2); break;
                     case 'translation': makeInput = (colIndex === 3); break;
                 }
 
-                // Crear input o texto
                 if (makeInput) {
                     const input = document.createElement('input');
                     input.type = 'text';
-                    input.dataset.colIndex = colIndex; // Guarda el índice de la columna
+                    input.dataset.colIndex = colIndex;
                     input.setAttribute('aria-label', `Respuesta para ${getHeaderName(colIndex)} del verbo ${verbData[0]}`);
-                    // *** AÑADIR LISTENER PARA VALIDACIÓN INSTANTÁNEA ***
-                    input.addEventListener('blur', handleInputBlur);
+                    input.addEventListener('blur', handleInputBlur); // Listener para validación al salir
                     cell.appendChild(input);
                 } else {
-                    cell.textContent = text; // Mostrar el texto correcto si no es input
+                    cell.textContent = text; // Mostrar texto si no es input
                 }
             }
         });
     });
 
-    // 4. Asegurar al menos un input por fila en modo aleatorio (opcional pero recomendado)
     if (mode === 'random') {
-        ensureOneInputPerRow();
+        ensureOneInputPerRow(); // Asegurar inputs en modo aleatorio
     }
 
-    // 5. Mensaje inicial y log
     feedbackDiv.textContent = 'Rellena las casillas vacías. La corrección es automática al salir de cada casilla.';
     console.log(`Juego iniciado en modo: ${mode}. Verbos mostrados: ${verbsToDisplay.length}`);
 }
 
 /**
- * Función auxiliar (para modo 'random'): Asegura que cada fila tenga al menos un input.
- * Si una fila no tiene inputs, convierte una celda aleatoria (no 'Tipo') en input.
+ * Auxiliar para modo 'random': asegura al menos un input por fila.
  */
 function ensureOneInputPerRow() {
     const rows = tableBody.querySelectorAll('tr');
     rows.forEach(row => {
         const inputsInRow = row.querySelectorAll('input');
-        if (inputsInRow.length === 0 && originalVerbDataMap.has(row.dataset.verbKey)) { // Solo si no hay inputs
+        if (inputsInRow.length === 0 && originalVerbDataMap.has(row.dataset.verbKey)) {
             const cells = row.querySelectorAll('td');
             let randomIndex;
-            // Elegir una columna aleatoria entre 0 y 3 (Inf, PS, PP, Trans)
-            do {
-                randomIndex = Math.floor(Math.random() * 4);
-            } while (randomIndex === 4); // Asegura no elegir la columna 'Tipo'
+            do { randomIndex = Math.floor(Math.random() * 4); } while (randomIndex === 4); // 0 a 3
 
             const cellToChange = cells[randomIndex];
             const verbKey = row.dataset.verbKey;
             const originalData = originalVerbDataMap.get(verbKey);
 
-            if (!originalData) { // Salvaguarda
-                console.error("Asegurando input: No se encontraron datos originales para la clave:", verbKey);
-                return;
+            if (!originalData) {
+                console.error("Asegurando input: Datos no encontrados para:", verbKey); return;
             }
 
-            // Limpiar la celda y añadir el input
-            cellToChange.innerHTML = '';
+            cellToChange.innerHTML = ''; // Limpiar celda
             const input = document.createElement('input');
             input.type = 'text';
             input.dataset.colIndex = randomIndex;
             input.setAttribute('aria-label', `Respuesta para ${getHeaderName(randomIndex)} del verbo ${originalData[0]}`);
-            // *** IMPORTANTE: Añadir también el listener aquí ***
-            input.addEventListener('blur', handleInputBlur);
+            input.addEventListener('blur', handleInputBlur); // Añadir listener aquí también
             cellToChange.appendChild(input);
             console.log(`Input asegurado en fila con clave ${verbKey}, columna ${randomIndex}`);
         }
@@ -137,9 +118,7 @@ function ensureOneInputPerRow() {
 }
 
 /**
- * Devuelve el nombre de la cabecera de columna para usar en aria-label.
- * @param {number} colIndex Índice de la columna (0-3).
- * @returns {string} Nombre de la cabecera.
+ * Devuelve el nombre de la cabecera para aria-label.
  */
 function getHeaderName(colIndex) {
     const headers = ["Infinitivo", "Pasado Simple", "Pasado Participio", "Traducción"];
@@ -148,80 +127,95 @@ function getHeaderName(colIndex) {
 
 /**
  * Manejador del evento 'blur' para un input. Se llama cuando el input pierde el foco.
- * @param {Event} event El objeto del evento 'blur'.
  */
 function handleInputBlur(event) {
-    const input = event.target; // El input que perdió el foco
+    const input = event.target;
     checkSingleInput(input); // Comprueba la respuesta de este input
-    // Opcional: podrías añadir aquí una lógica para actualizar un contador global si quisieras
-    // updateGeneralFeedback();
+    // updateGeneralFeedback(); // Podrías llamar a una función que actualice el contador general aquí si quieres
 }
 
 /**
- * Comprueba la respuesta de UN SOLO input y aplica el estilo visual (verde/rojo).
+ * Comprueba la respuesta de UN SOLO input y aplica el estilo visual (verde/amarillo/rojo).
  * @param {HTMLInputElement} input El elemento input a comprobar.
- * @returns {boolean} `true` si la respuesta es correcta, `false` si es incorrecta o hay error.
+ * @returns {boolean} `true` si la respuesta es correcta o parcialmente correcta, `false` si es incorrecta o hay error.
  */
 function checkSingleInput(input) {
-    const userAnswer = input.value.trim().toLowerCase(); // Respuesta del usuario (limpia y en minúsculas)
-    const cell = input.closest('td'); // Celda que contiene el input
-    const row = input.closest('tr'); // Fila que contiene el input
+    const userAnswer = input.value.trim(); // Guardamos la respuesta con mayúsculas/minúsculas originales
+    const lowerUserAnswer = userAnswer.toLowerCase(); // Versión en minúsculas para comparación
+    const cell = input.closest('td');
+    const row = input.closest('tr');
 
     // Validar que tenemos toda la info necesaria
     if (!row || !cell || !row.dataset.verbKey || typeof input.dataset.colIndex === 'undefined') {
-         console.error("CheckSingleInput: No se pudo encontrar la información necesaria (row, cell, key, colIndex) para comprobar:", input);
-         input.classList.remove('correct');
-         input.classList.add('incorrect'); // Marcar como incorrecto por defecto en caso de error
+         console.error("CheckSingleInput: Info incompleta para comprobar:", input);
+         input.classList.remove('correct', 'incorrect', 'partial'); // Limpia clases
+         input.classList.add('incorrect');
          return false;
     }
 
-    const verbKey = row.dataset.verbKey; // Clave para buscar en el mapa
-    const colIndex = parseInt(input.dataset.colIndex); // Índice de la columna
-    const originalData = originalVerbDataMap.get(verbKey); // Obtener los datos originales del verbo
+    const verbKey = row.dataset.verbKey;
+    const colIndex = parseInt(input.dataset.colIndex);
+    const originalData = originalVerbDataMap.get(verbKey);
 
     // Validar que encontramos los datos originales
     if (!originalData) {
-        console.error("CheckSingleInput: No se encontraron datos originales en el mapa para la clave:", verbKey);
-        input.classList.remove('correct');
+        console.error("CheckSingleInput: Datos originales no encontrados para:", verbKey);
+        input.classList.remove('correct', 'incorrect', 'partial');
         input.classList.add('incorrect');
         return false;
     }
 
-    const correctAnswer = originalData[colIndex].toLowerCase(); // Respuesta correcta (en minúsculas)
-    // Manejar respuestas múltiples separadas por '/' (ej: "was/were", "got/gotten")
-    const possibleAnswers = correctAnswer.split('/').map(ans => ans.trim());
+    const correctAnswerString = originalData[colIndex]; // Respuesta(s) correcta(s) como string original
+    const lowerCorrectAnswerString = correctAnswerString.toLowerCase(); // Versión en minúsculas para comparar
+
+    // Dividir las posibles respuestas correctas (siempre, incluso si solo hay una)
+    const possibleAnswers = lowerCorrectAnswerString.split('/').map(ans => ans.trim()).filter(ans => ans !== ''); // Divide y quita vacíos
+    const hasMultipleOptions = possibleAnswers.length > 1; // ¿Hay más de una opción válida?
 
     // Limpiar estilos y placeholder anteriores
-    input.classList.remove('correct', 'incorrect');
-    input.placeholder = ''; // Quitar cualquier placeholder (como la respuesta correcta de un intento anterior)
+    input.classList.remove('correct', 'incorrect', 'partial'); // Asegura limpiar todos los estados
+    input.placeholder = ''; // Quitar cualquier placeholder previo
 
-    let isCorrect = false;
+    let isConsideredCorrect = false; // Para el contador final
+
     // Comprobar la respuesta
-    if (userAnswer === '') {
-        // Si el usuario deja la casilla vacía, no hacemos nada inmediatamente.
-        // Se marcará como incorrecta si pulsa el botón "Comprobar Todo".
-        // Podrías cambiar esto y marcarlo como incorrecto inmediatamente si lo prefieres:
-        // input.classList.add('incorrect');
-        // input.placeholder = `Respuesta: ${originalData[colIndex]}`;
-    } else if (possibleAnswers.includes(userAnswer)) {
-        // ¡Respuesta correcta!
-        input.classList.add('correct');
-        isCorrect = true;
-        // Opcional: Deshabilitar el input si es correcto para evitar cambios
-        // input.disabled = true;
+    if (lowerUserAnswer === '') {
+        // Vacío: no hacer nada ahora, se marcará en "Comprobar Todo" si sigue vacío.
+    } else if (possibleAnswers.includes(lowerUserAnswer)) {
+        // La respuesta del usuario está en la lista de posibles respuestas correctas
+        isConsideredCorrect = true; // Cuenta como acierto
+
+        if (hasMultipleOptions) {
+            // Había múltiples opciones Y el usuario puso una de ellas -> Amarillo (Parcial)
+            input.classList.add('partial');
+             // Opcional: Mostrar las otras opciones en el title (tooltip)
+             const otherOptions = possibleAnswers.filter(ans => ans !== lowerUserAnswer).join(' / ');
+             if(otherOptions) {
+                 input.title = `También válido: ${otherOptions}`;
+             } else {
+                 input.title = ''; // Limpiar tooltip si no hay otras
+             }
+        } else {
+            // Solo había una opción posible Y el usuario la puso -> Verde (Correcto)
+            input.classList.add('correct');
+            input.title = ''; // Limpiar tooltip
+        }
     } else {
-        // Respuesta incorrecta
+        // La respuesta del usuario NO está en la lista de posibles respuestas
         input.classList.add('incorrect');
-        // Mostrar la respuesta correcta en el placeholder como ayuda
-        input.placeholder = `Correcto: ${originalData[colIndex]}`;
+        // Mostrar TODAS las opciones correctas (formato original) en el placeholder
+        input.placeholder = `Correcto: ${correctAnswerString}`;
+        input.title = ''; // Limpiar tooltip
+        isConsideredCorrect = false;
     }
 
-    return isCorrect; // Devuelve si fue correcta o no
+    // Devolvemos true si fue 'correct' o 'partial' para que cuente en el resumen final
+    return isConsideredCorrect;
 }
 
 
 /**
- * Comprueba TODAS las respuestas. Llamado por el botón "Comprobar Todo".
+ * Comprueba TODAS las respuestas. Llamado por el botón "Comprobar Todo / Ver Respuestas".
  * Itera por todos los inputs, valida cada uno (marcando los vacíos como incorrectos)
  * y muestra un resumen final en el div de feedback.
  */
@@ -232,9 +226,9 @@ function checkAllAnswers() {
     }
 
     const inputs = tableBody.querySelectorAll('input[type="text"]');
-    let correctCount = 0;
+    let correctOrPartialCount = 0; // Contará tanto verdes como amarillos
     let totalInputs = inputs.length;
-    let answeredInputs = 0; // Contador de inputs que tienen algún valor
+    let answeredInputs = 0;
 
     if (totalInputs === 0) {
         feedbackDiv.textContent = 'No hay nada que comprobar en este modo.';
@@ -243,20 +237,20 @@ function checkAllAnswers() {
 
     // Iterar por cada input para comprobarlo y contar
     inputs.forEach(input => {
-        const isCorrect = checkSingleInput(input); // Revalida (o valida por primera vez si no se tocó)
-        if (isCorrect) {
-            correctCount++;
+        const isCorrectOrPartial = checkSingleInput(input); // Revalida (o valida por primera vez)
+        if (isCorrectOrPartial) {
+            correctOrPartialCount++;
         }
 
-        // Si el input está vacío DESPUÉS de la validación (checkSingleInput no lo marcó como correcto),
-        // ahora lo marcamos explícitamente como incorrecto y mostramos la respuesta.
-        if (input.value.trim() === '' && !input.classList.contains('correct')) {
+        // Si el input está vacío DESPUÉS de la validación y no es correcto/parcial,
+        // lo marcamos explícitamente como incorrecto y mostramos la respuesta.
+        if (input.value.trim() === '' && !input.classList.contains('correct') && !input.classList.contains('partial')) {
              input.classList.add('incorrect');
              // Mostrar la respuesta en el placeholder para los vacíos
              const row = input.closest('tr');
              const colIndex = parseInt(input.dataset.colIndex);
-             const originalData = originalVerbDataMap.get(row?.dataset.verbKey); // Usar optional chaining por si acaso
-             if (originalData && originalData[colIndex]) {
+             const originalData = originalVerbDataMap.get(row?.dataset.verbKey);
+             if (originalData && typeof originalData[colIndex] !== 'undefined') {
                  input.placeholder = `Respuesta: ${originalData[colIndex]}`;
              }
         }
@@ -268,7 +262,7 @@ function checkAllAnswers() {
     });
 
     // Mostrar el resumen final
-    feedbackDiv.textContent = `Comprobación final: ${correctCount} de ${totalInputs} respuestas correctas. (${answeredInputs} respondidas).`;
+    feedbackDiv.textContent = `Comprobación final: ${correctOrPartialCount} de ${totalInputs} respuestas correctas (verdes o amarillas). (${answeredInputs} respondidas).`;
     // Hacer scroll para que el feedback sea visible
     feedbackDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -283,8 +277,7 @@ btnTranslation.addEventListener('click', () => startGame('translation'));
 
 // El botón 'Comprobar' ahora sirve para una revisión final y ver respuestas de los no contestados/incorrectos
 btnCheck.addEventListener('click', checkAllAnswers);
-// Cambiar texto del botón para reflejar esto (opcional)
-btnCheck.textContent = 'Comprobar Todo / Ver Respuestas';
+btnCheck.textContent = 'Comprobar Todo / Ver Respuestas'; // Texto actualizado del botón
 
 // --- Inicio ---
 // Mensaje inicial al cargar la página
