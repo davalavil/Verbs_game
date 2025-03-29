@@ -1,4 +1,4 @@
-// js/script.js (Versión con validación instantánea, feedback parcial y botón revelar fila)
+// js/script.js (Versión final con validación instantánea, feedback parcial/completo y botón revelar fila)
 
 // --- Referencias a Elementos del DOM ---
 const tableBody = document.getElementById('verb-table-body');
@@ -52,20 +52,18 @@ function startGame(mode) {
             const cell = row.insertCell();
             let makeInput = false;
 
-            // --- MODIFICACIÓN AQUÍ para la última columna ---
-            if (colIndex === 4) { // Columna 'Tipo'
-                // Crear un span para el texto "regular/irregular"
+            // --- Creación de celda para la última columna (Tipo + Botón) ---
+            if (colIndex === 4) {
                 const typeText = document.createElement('span');
                 typeText.textContent = text;
                 cell.appendChild(typeText);
 
-                // Crear el botón de revelar (ojo)
                 const revealBtn = document.createElement('button');
-                revealBtn.innerHTML = '👁️'; // Emoji de ojo (o usa )
+                revealBtn.innerHTML = '👁️';
                 revealBtn.classList.add('reveal-button');
-                revealBtn.title = 'Mostrar respuestas de esta fila'; // Tooltip
+                revealBtn.title = 'Mostrar respuestas de esta fila';
                 revealBtn.setAttribute('aria-label', `Mostrar respuestas para ${verbData[0]}`);
-                revealBtn.addEventListener('click', handleRevealClick); // Añadir listener
+                revealBtn.addEventListener('click', handleRevealClick);
                 cell.appendChild(revealBtn);
 
             } else { // Columnas de verbos y traducción
@@ -83,17 +81,17 @@ function startGame(mode) {
                     input.type = 'text';
                     input.dataset.colIndex = colIndex;
                     input.setAttribute('aria-label', `Respuesta para ${getHeaderName(colIndex)} del verbo ${verbData[0]}`);
-                    input.addEventListener('blur', handleInputBlur); // Listener para validación al salir
+                    input.addEventListener('blur', handleInputBlur);
                     cell.appendChild(input);
                 } else {
-                    cell.textContent = text; // Mostrar texto si no es input
+                    cell.textContent = text;
                 }
             }
         });
     });
 
     if (mode === 'random') {
-        ensureOneInputPerRow(); // Asegurar inputs en modo aleatorio
+        ensureOneInputPerRow();
     }
 
     feedbackDiv.textContent = 'Rellena las casillas vacías. La corrección es automática. Usa 👁️ para ver las respuestas de una fila.';
@@ -102,7 +100,6 @@ function startGame(mode) {
 
 /**
  * Auxiliar para modo 'random': asegura al menos un input por fila.
- * No necesita cambios para el botón revelar, ya que este se añade en startGame.
  */
 function ensureOneInputPerRow() {
     const rows = tableBody.querySelectorAll('tr');
@@ -111,22 +108,20 @@ function ensureOneInputPerRow() {
         if (inputsInRow.length === 0 && originalVerbDataMap.has(row.dataset.verbKey)) {
             const cells = row.querySelectorAll('td');
             let randomIndex;
-            do { randomIndex = Math.floor(Math.random() * 4); } while (randomIndex === 4); // 0 a 3
+            do { randomIndex = Math.floor(Math.random() * 4); } while (randomIndex === 4);
 
             const cellToChange = cells[randomIndex];
             const verbKey = row.dataset.verbKey;
             const originalData = originalVerbDataMap.get(verbKey);
 
-            if (!originalData) {
-                console.error("Asegurando input: Datos no encontrados para:", verbKey); return;
-            }
+            if (!originalData) { console.error("Asegurando input: Datos no encontrados:", verbKey); return; }
 
-            cellToChange.innerHTML = ''; // Limpiar celda
+            cellToChange.innerHTML = '';
             const input = document.createElement('input');
             input.type = 'text';
             input.dataset.colIndex = randomIndex;
             input.setAttribute('aria-label', `Respuesta para ${getHeaderName(randomIndex)} del verbo ${originalData[0]}`);
-            input.addEventListener('blur', handleInputBlur); // Añadir listener aquí también
+            input.addEventListener('blur', handleInputBlur);
             cellToChange.appendChild(input);
             console.log(`Input asegurado en fila con clave ${verbKey}, columna ${randomIndex}`);
         }
@@ -146,18 +141,24 @@ function getHeaderName(colIndex) {
  */
 function handleInputBlur(event) {
     const input = event.target;
-    checkSingleInput(input); // Comprueba la respuesta de este input
+    checkSingleInput(input);
 }
 
 /**
  * Comprueba la respuesta de UN SOLO input y aplica el estilo visual (verde/amarillo/rojo).
+ * Verde: Respuesta única correcta O todas las respuestas múltiples correctas.
+ * Amarillo: Una de las respuestas múltiples correcta, pero no todas.
+ * Rojo: Respuesta incorrecta.
+ * @param {HTMLInputElement} input El elemento input a comprobar.
+ * @returns {boolean} `true` si la respuesta es correcta (verde) o parcial (amarillo), `false` si es incorrecta o hay error.
  */
 function checkSingleInput(input) {
-    const userAnswer = input.value.trim();
-    const lowerUserAnswer = userAnswer.toLowerCase();
+    const userAnswer = input.value.trim(); // Respuesta del usuario (con espacios y mayúsculas originales)
+    const lowerUserAnswer = userAnswer.toLowerCase(); // Para comparación insensible a mayúsculas
     const cell = input.closest('td');
     const row = input.closest('tr');
 
+    // --- Validación de datos necesarios ---
     if (!row || !cell || !row.dataset.verbKey || typeof input.dataset.colIndex === 'undefined') {
          console.error("CheckSingleInput: Info incompleta:", input);
          input.classList.remove('correct', 'incorrect', 'partial');
@@ -175,85 +176,115 @@ function checkSingleInput(input) {
         input.classList.add('incorrect');
         return false;
     }
+    // --- Fin Validación ---
 
-    const correctAnswerString = originalData[colIndex];
-    const lowerCorrectAnswerString = correctAnswerString.toLowerCase();
-    const possibleAnswers = lowerCorrectAnswerString.split('/').map(ans => ans.trim()).filter(ans => ans !== '');
+    const correctAnswerString = originalData[colIndex]; // Respuesta(s) correcta(s) como string original
+    const lowerCorrectAnswerString = correctAnswerString.toLowerCase(); // Para comparación
+
+    // Obtener las respuestas posibles SIEMPRE como un array
+    const possibleAnswers = lowerCorrectAnswerString.split('/')
+                                  .map(ans => ans.trim())
+                                  .filter(ans => ans !== ''); // Divide, limpia espacios y quita vacíos
     const hasMultipleOptions = possibleAnswers.length > 1;
 
+    // Limpiar clases, placeholder y tooltip previos
     input.classList.remove('correct', 'incorrect', 'partial');
     input.placeholder = '';
-    input.title = ''; // Limpiar tooltip al comprobar/revalidar
+    input.title = '';
 
-    let isConsideredCorrect = false;
+    let isConsideredCorrectOrPartial = false; // Para el recuento final
 
+    // --- Lógica de Comprobación (MODIFICADA) ---
     if (lowerUserAnswer === '') {
-        // No marcar vacío en blur, solo en 'Comprobar Todo'
-    } else if (possibleAnswers.includes(lowerUserAnswer)) {
-        isConsideredCorrect = true;
-        if (hasMultipleOptions) {
-            input.classList.add('partial'); // Amarillo
-            const otherOptions = possibleAnswers.filter(ans => ans !== lowerUserAnswer).join(' / ');
-            if(otherOptions) { input.title = `También válido: ${otherOptions}`; } // Mostrar otras opciones en tooltip
-        } else {
-            input.classList.add('correct'); // Verde
-        }
+        // Si está vacío, no hacer nada en blur. Se marcará en 'Comprobar Todo'.
     } else {
-        input.classList.add('incorrect'); // Rojo
-        input.placeholder = `Correcto: ${correctAnswerString}`; // Mostrar respuesta(s) correcta(s)
-        isConsideredCorrect = false;
+        // Comprobar si la respuesta *exacta* del usuario (ignorando mayúsculas/minúsculas)
+        // está dentro de las posibles respuestas individuales.
+        const isAmongPossible = possibleAnswers.includes(lowerUserAnswer);
+
+        if (isAmongPossible) {
+            // La respuesta es al menos una de las opciones válidas.
+            isConsideredCorrectOrPartial = true; // Contará como acierto
+
+            if (hasMultipleOptions) {
+                // Había múltiples opciones originalmente. Ahora vemos si las puso TODAS.
+
+                // Normalizamos la entrada del usuario: dividir por '/', quitar espacios, filtrar vacíos y ordenar
+                const userProvidedAnswers = lowerUserAnswer.split('/')
+                                              .map(ans => ans.trim())
+                                              .filter(ans => ans !== '');
+                userProvidedAnswers.sort(); // Ordenar para comparar independientemente del orden de entrada
+
+                // Normalizamos las respuestas correctas (ya las teníamos, solo falta ordenar)
+                const sortedPossibleAnswers = [...possibleAnswers].sort();
+
+                // Comparamos si los arrays (normalizados y ordenados) son idénticos
+                const isExactMatchOfAll = userProvidedAnswers.length === sortedPossibleAnswers.length &&
+                                          userProvidedAnswers.every((val, index) => val === sortedPossibleAnswers[index]);
+
+                if (isExactMatchOfAll) {
+                    // El usuario escribió TODAS las opciones válidas -> Verde
+                    input.classList.add('correct');
+                } else {
+                    // El usuario escribió UNA opción válida, pero NO TODAS -> Amarillo
+                    input.classList.add('partial');
+                    // Mostrar las otras opciones en el tooltip
+                    const otherOptions = possibleAnswers.filter(ans => ans !== lowerUserAnswer).join(' / ');
+                    if (otherOptions) { input.title = `También válido: ${otherOptions}`; }
+                }
+            } else {
+                // Solo había una opción posible, y el usuario la acertó -> Verde
+                input.classList.add('correct');
+            }
+        } else {
+            // La respuesta del usuario NO coincide con ninguna de las opciones válidas -> Rojo
+            input.classList.add('incorrect');
+            input.placeholder = `Correcto: ${correctAnswerString}`; // Mostrar la(s) respuesta(s) correcta(s)
+            isConsideredCorrectOrPartial = false;
+        }
     }
-    return isConsideredCorrect; // Devuelve true si fue verde o amarillo
+    // --- Fin Lógica ---
+
+    // Devuelve true si fue verde o amarillo (para el contador de 'Comprobar Todo')
+    return isConsideredCorrectOrPartial;
 }
 
 
 /**
  * Manejador para el clic en el botón de revelar (ojo).
- * Rellena todos los inputs de la fila correspondiente con las respuestas correctas.
  */
 function handleRevealClick(event) {
-    const button = event.target.closest('button'); // Asegura que es el botón
-    if (!button) return; // Salir si no se hizo clic en el botón
+    const button = event.target.closest('button');
+    if (!button) return;
 
     const row = button.closest('tr');
-    if (!row || !row.dataset.verbKey) return; // Salir si no encontramos la fila o la clave
+    if (!row || !row.dataset.verbKey) return;
 
     const verbKey = row.dataset.verbKey;
     const originalData = originalVerbDataMap.get(verbKey);
 
-    if (!originalData) {
-        console.error("RevealClick: No se encontraron datos para la clave:", verbKey);
-        return;
-    }
+    if (!originalData) { console.error("RevealClick: Datos no encontrados:", verbKey); return; }
 
     console.log(`Revelando respuestas para: ${originalData[0]}`);
 
-    // Encontrar todos los inputs DENTRO de esta fila específica
     const inputsInRow = row.querySelectorAll('input[type="text"]');
 
     inputsInRow.forEach(input => {
         if (typeof input.dataset.colIndex !== 'undefined') {
             const colIndex = parseInt(input.dataset.colIndex);
-            // Obtener la respuesta correcta (o la primera si hay varias)
-            const correctAnswer = originalData[colIndex].split('/')[0].trim();
-            // Alternativa: Mostrar todas las opciones separadas por /
-            // const correctAnswer = originalData[colIndex];
-
-            input.value = correctAnswer; // Poner la respuesta en el input
-            checkSingleInput(input); // Validar para que se ponga verde/amarillo y actualice tooltip/placeholder si es necesario
-            // input.disabled = true; // Opcional: deshabilitar input después de revelar
+            // Rellenamos con la respuesta completa (incluyendo '/' si hay varias)
+            const correctAnswer = originalData[colIndex];
+            input.value = correctAnswer;
+            checkSingleInput(input); // Validar para aplicar estilo verde/amarillo
+            // input.disabled = true; // Opcional: deshabilitar
         }
     });
-
-    // Opcional: deshabilitar el botón de revelar una vez usado
-    button.disabled = true;
+    button.disabled = true; // Deshabilitar botón revelar
 }
 
 
 /**
- * Comprueba TODAS las respuestas. Llamado por el botón "Comprobar Todo / Ver Respuestas".
- * Itera por todos los inputs, valida cada uno (marcando los vacíos como incorrectos)
- * y muestra un resumen final en el div de feedback.
+ * Comprueba TODAS las respuestas (llamado por el botón).
  */
 function checkAllAnswers() {
      if (!currentMode) {
@@ -275,10 +306,9 @@ function checkAllAnswers() {
         if (isCorrectOrPartial) {
             correctOrPartialCount++;
         }
-        // Si el input está vacío Y no es correcto/parcial después de la validación, marcar como incorrecto
+        // Marcar vacíos como incorrectos al comprobar todo
         if (input.value.trim() === '' && !input.classList.contains('correct') && !input.classList.contains('partial')) {
              input.classList.add('incorrect');
-             // Mostrar la respuesta en el placeholder para los vacíos
              const row = input.closest('tr');
              const colIndex = parseInt(input.dataset.colIndex);
              const originalData = originalVerbDataMap.get(row?.dataset.verbKey);
@@ -286,13 +316,11 @@ function checkAllAnswers() {
                  input.placeholder = `Respuesta: ${originalData[colIndex]}`;
              }
         }
-        // Contar si el input tiene algún valor
         if (input.value.trim() !== '') {
             answeredInputs++;
         }
     });
 
-    // Mostrar el resumen final
     feedbackDiv.textContent = `Comprobación final: ${correctOrPartialCount} de ${totalInputs} respuestas correctas (verdes o amarillas). (${answeredInputs} respondidas).`;
     feedbackDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -308,5 +336,4 @@ btnCheck.addEventListener('click', checkAllAnswers);
 btnCheck.textContent = 'Comprobar Todo / Ver Respuestas';
 
 // --- Inicio ---
-// Mensaje inicial al cargar la página
 feedbackDiv.textContent = "Selecciona un modo de juego para empezar.";
